@@ -1,48 +1,58 @@
-# Corvus OS - Lightweight Linux Distribution
+# Corvus-Os
 
-## Development
+Corvus-Os adalah distribusi Linux minimal yang dibangun menggunakan Buildroot, dirancang untuk booting dengan emulator dan sebagai mesin virtual.
 
-### Building Corvus OS
+## Fitur Utama
+
+- **Ringan & Minimal**: Build OS yang super ringan dan efisien
+- **Python Terintegrasi**: Python terbaru sudah terinstall otomatis
+- **RenzmcLang Support**: Bahasa pemrograman Indonesia (renzmc) sudah terinstall
+- **Multi-Architecture**: Support untuk x86_64 (amd64) dan aarch64 (arm64)
+- **Multiple Boot Options**: QEMU, UEFI, ISO, dan Disk Image
+
+## Quick Start
 
 ```bash
-# Clone the repository
-git clone https://github.com/RenzMc/CorvusOS.git
-cd CorvusOS/buildroot
-
-# Configure build
-make coros_os_defconfig
-
-# Build the system
-make -j$(nproc)
-
-# Run in QEMU
-make qemu
+git clone --branch=2023.02.x https://github.com/buildroot/buildroot
+cd buildroot
+make BR2_EXTERNAL=.. <target>_defconfig
+make
 ```
 
-### Directory Structure
+## Target Build
 
+| Target   | x86_64 (amd64)              | aarch64 (arm64)              |
+| -------- | --------------------------- | ---------------------------- |
+| QEMU     | qemu_x86_64_defconfig       | qemu_aarch64_virt_defconfig  |
+| UEFI     | pc_x86_64_efi_defconfig     | aarch64_efi_defconfig        |
+| IMG      | img_x86_64_defconfig        | img_aarch64_defconfig        |
+| ISO      | iso_x86_64_defconfig        | iso_aarch64_defconfig        |
+
+## Menjalankan OS
+
+### QEMU Image Mode
+```bash
+./run-img-amd64.sh   # untuk x86_64
+./run-img-arm64.sh   # untuk aarch64
 ```
-CorvusOS/
-├── buildroot/          # Buildroot system
-├── package/
-│   └── coros-renzmc/   # RenzMcLang integration package
-├── board/
-│   └── coros/          # Board-specific configurations
-└── configs/
-    └── coros_os_defconfig
+
+### ISO Mode
+```bash
+./run-iso-amd64.sh   # untuk x86_64
+./run-iso-arm64.sh   # untuk aarch64
 ```
 
-## Support
+## Struktur Project
 
-### Documentation
-- **RenzMcLang Docs**: [renzmc-docs.vercel.app](https://renzmc-docs.vercel.app/)
-- **GitHub Repository**: [github.com/RenzMc/RenzmcLang](https://github.com/RenzMc/RenzmcLang)
+- `board/` - Board configurations
+- `configs/` - Build configurations
+- `kernel/` - Linux kernel configs
+- `container/` - Docker build support
+
 ## License
 
-Corvus OS is licensed under the MIT License. See LICENSE file for details.
+MIT License - Copyright (c) 2025 Renz
 
-## Contributing
+---
 
-Contributions are welcome! Please feel free to submit issues and enhancement requests.
-
-**Corvus OS - Lightweight, Powerful, Simple**
+**Corvus-Os** - Linux Distribution Made Simple

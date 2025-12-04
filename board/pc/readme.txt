@@ -5,10 +5,6 @@ Bare PC sample config
 
   First select the appropriate target you want.
 
-  For BIOS-based boot strategy:
-
-  $ make pc_x86_64_bios_defconfig
-
   For EFI-based boot strategy on a GPT-partitioned disk:
 
   $ make pc_x86_64_efi_defconfig
@@ -17,14 +13,14 @@ Bare PC sample config
 
   $ make
 
-2. Write the image
+2. Write the pendrive
 
-  The build process will create a all-in-one image called disk.img in
+  The build process will create a pendrive image called sdcard.img in
   output/images.
 
   Write the image to a pendrive:
 
-  $ dd if=output/images/disk.img of=/dev/sdX; sync
+  $ dd if=output/images/disk.img of=/dev/sdc; sync
 
   Once it's done insert it into the target PC and boot.
 
@@ -35,26 +31,6 @@ Bare PC sample config
   the setup as well.
 
 3. Enjoy
-
-Emulation in qemu (BIOS)
-========================
-
-1. Edit grub-bios.cfg
-
-  Since the driver will show up in the virtual machine as /dev/vda,
-  change board/pc/grub-bios.cfg to use root=/dev/vda1 instead of
-  root=/dev/sda1. Then rebuild grub2 and the image:
-
-    make grub2-rebuild && make
-
-2. Run the emulation with:
-
-qemu-system-x86_64 \
-	-M pc \
-	-drive file=output/images/disk.img,if=virtio,format=raw \
-	-net nic,model=virtio \
-	-net user
-
 
 Emulation in qemu (UEFI)
 ========================
