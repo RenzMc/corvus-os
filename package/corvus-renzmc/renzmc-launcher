@@ -1,0 +1,131 @@
+#!/bin/bash
+# RenzMcLang Launcher for Corvus OS
+# Author: RenzMc
+
+echo "================================"
+echo "  Corvus OS - RenzMcLang v1.0"
+echo "  Author: RenzMc"
+echo "================================"
+echo ""
+
+# Check if RenzMcLang is installed
+if ! command -v renzmc &> /dev/null; then
+    echo "Error: RenzMcLang not found. Installing..."
+    pip3 install renzmc
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to install RenzMcLang"
+        exit 1
+    fi
+fi
+
+# Show help if no arguments provided
+if [ $# -eq 0 ]; then
+    echo "Usage: renzmc-launcher [script.rmc] [options]"
+    echo ""
+    echo "Commands:"
+    echo " renzmc-launcher                    Show this help"
+    echo " renzmc-launcher run <script>       Run RenzMcLang script"
+    echo " renzmc-launcher examples           List available examples"
+    echo " renzmc-launcher demo               Run demo script"
+    echo " renzmc-launcher version            Show version info"
+    echo ""
+    echo "Examples:"
+    echo "  renzmc-launcher run hello.rmc"
+    echo "  renzmc-launcher demo"
+    exit 0
+fi
+
+# Process commands
+case "$1" in
+    "run")
+        if [ $# -lt 2 ]; then
+            echo "Error: Please specify a script file"
+            echo "Usage: renzmc-launcher run <script.rmc>"
+            exit 1
+        fi
+        shift
+        echo "Running RenzMcLang script: $1"
+        renzmc "$1"
+        ;;
+    "examples")
+        echo "Available RenzMcLang examples:"
+        echo ""
+        if [ -d "/usr/share/renzmc/examples" ]; then
+            ls -la /usr/share/renzmc/examples/*.rmc 2>/dev/null || echo "No example files found"
+        else
+            echo "Examples directory not found"
+        fi
+        echo ""
+        echo "Run example with: renzmc-launcher run <path_to_example>"
+        ;;
+    "demo")
+        echo "Running RenzMcLang demo..."
+        echo ""
+        cat > /tmp/coros_demo.rmc << 'EOF'
+// ============================================
+// Corvus OS Demo - RenzMcLang
+// Author: RenzMc
+// ============================================
+
+tampilkan "================================"
+tampilkan "  Selamat datang di Corvus OS!"
+tampilkan "  Powered by RenzMcLang"
+tampilkan "  Author: RenzMc"
+tampilkan "================================"
+tampilkan ""
+
+// Variabel demo
+nama_os itu "Corvus OS"
+versi itu "1.0"
+author itu "RenzMc"
+
+tampilkan "Sistem Operasi: " + nama_os
+tampilkan "Versi: " + versi
+tampilkan "Pembuat: " + author
+tampilkan ""
+
+// Kalkulasi sederhana
+angka1 itu 10
+angka2 itu 25
+hasil itu angka1 + angka2
+
+tampilkan "Perhitungan: " + angka1 + " + " + angka2 + " = " + hasil
+tampilkan ""
+
+// Loop demo
+tampilkan "Menghitung mundur dari 5:"
+untuk i dari 5 sampai 1 langkah -1
+    tampilkan "  Counter: " + i
+selesai
+tampilkan ""
+
+// Array/List demo
+fitur itu ["Ringan", "Cepat", "Sederhana", "Powerful"]
+tampilkan "Fitur-fitur Corvus OS:"
+untuk setiap item dari fitur
+    tampilkan "  - " + item
+selesai
+tampilkan ""
+
+tampilkan "================================"
+tampilkan "  Terima kasih telah menggunakan"
+tampilkan "  Corvus OS dengan RenzMcLang!"
+tampilkan "================================"
+EOF
+        renzmc /tmp/coros_demo.rmc
+        rm -f /tmp/coros_demo.rmc
+        ;;
+    "version")
+        echo "Corvus OS RenzMcLang Integration v1.0"
+        echo "Author: RenzMc"
+        echo "Repository: https://github.com/RenzMc/RenzmcLang"
+        echo ""
+        echo "RenzMcLang version:"
+        renzmc --version 2>/dev/null || echo "RenzMcLang not installed or version unavailable"
+        ;;
+    *)
+        echo "Unknown command: $1"
+        echo "Use 'renzmc-launcher' for help"
+        exit 1
+        ;;
+esac

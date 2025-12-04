@@ -1,0 +1,27 @@
+================================
+  Corvus OS v0.0.1 - Lightweight Linux Distribution
+  Powered by RenzMcLang
+  Author: RenzMc
+================================
+
+System Information:
+- Distribution: Corvus OS
+- Architecture: x86_64
+- Programming Language: RenzMcLang
+- GUI: Weston Wayland Compositor
+- Size: Optimized for minimal footprint
+
+Quick Commands:
+  renzmc          - RenzMcLang interpreter and help
+  demo            - Run RenzMcLang demo
+  examples        - List available examples
+  weston-terminal - Open GUI terminal
+  weston          - Start Weston GUI
+
+GUI Features:
+- Custom Corvus OS wallpaper
+- Wayland compositor
+- Terminal emulator
+- File manager
+
+GitHub: https://github.com/RenzMc/RenzmcLang

@@ -1,0 +1,13 @@
+--- a/libcpp/expr.cc
++++ b/libcpp/expr.cc
+@@ -839,8 +839,8 @@ cpp_classify_number (cpp_reader *pfile,
+ 	  else
+ 	    {
+ 	      cpp_warning_with_line (pfile, CPP_W_LONG_LONG, virtual_location,
+-				     0, message);
+-	      cpp_pedwarning_with_line (pfile, CPP_W_LONG_LONG,
++				     0, "%s", message);
++	      cpp_pedwarning_with_line (pfile, CPP_W_LONG_LONG,
+ 				       virtual_location, 0, "%s", message);
+ 	    }
+ 	}

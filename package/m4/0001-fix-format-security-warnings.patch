@@ -1,0 +1,31 @@
+--- a/lib/clean-temp.c
++++ b/lib/clean-temp.c
+@@ -231,7 +231,7 @@ create_temp_dir (char const *dir, char
+     char *xtemplate = xmalloc (dir_len + 1 + strlen (tmpl) + 1);
+     stpcpy (stpcpy (stpcpy (xtemplate, dir), "/"), tmpl);
+ 
+-    error (0, errno,
++    error (0, errno, "%s",
+            _("cannot create temporary directory in %s"),
+            quote (dir));
+ 
+--- a/lib/spawn-pipe.c
++++ b/lib/spawn-pipe.c
+@@ -215,7 +215,7 @@ create_pipe (int fd[2])
+   if (pipe (fd) < 0)
+     {
+       int saved_errno = errno;
+-      error (EXIT_FAILURE, errno, _("cannot create pipe"));
++      error (EXIT_FAILURE, errno, "%s", _("cannot create pipe"));
+       errno = saved_errno;
+       return -1;
+     }
+@@ -218,7 +218,7 @@ create_pipe (int fd[2])
+   if (create_pipe (fd) < 0)
+     {
+       int saved_errno = errno;
+-      error (EXIT_FAILURE, errno, _("cannot create pipe"));
++      error (EXIT_FAILURE, errno, "%s", _("cannot create pipe"));
+       errno = saved_errno;
+       return -1;
+     }

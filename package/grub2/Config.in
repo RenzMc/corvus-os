@@ -1,0 +1,31 @@
+config BR2_TARGET_GRUB2
+	bool "grub2"
+	depends on BR2_TARGET_GRUB2_ARCH_SUPPORTS
+	select BR2_PACKAGE_GRUB2 if BR2_TARGET_GRUB2_ARCH_SUPPORTS
+	help
+	  GRUB2 is a multiboot boot loader. It provides a boot menu to
+	  select which operating system to boot.
+
+	  http://www.gnu.org/software/grub/
+
+if BR2_TARGET_GRUB2
+
+config BR2_TARGET_GRUB2_BOOT_PARTITION
+	string "Boot partition"
+	default "msdos1"
+	help
+	  Specify the boot partition for GRUB2.
+
+config BR2_TARGET_GRUB2_BUILTIN_MODULES
+	string "Builtin modules"
+	default "boot linux ext2 fat part_msdos"
+	help
+	  List of builtin modules for GRUB2.
+
+config BR2_TARGET_GRUB2_BUILTIN_CONFIG
+	string "Builtin config file path"
+	default "board/corvus/grub.cfg"
+	help
+	  Path to builtin GRUB2 configuration file.
+
+endif

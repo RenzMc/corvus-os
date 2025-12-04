@@ -1,0 +1,66 @@
+# /etc/profile - Corvus OS system-wide profile
+# Author: RenzMc
+
+if [ "$PS1" ]; then
+    if [ "`id -u`" -eq 0 ]; then
+        export PS1='# '
+    else
+        export PS1='$ '
+    fi
+fi
+
+export PATH=`echo $PATH | sed 's/:\.//'`:/usr/local/bin
+
+# Corvus OS Welcome Message
+echo ""
+echo "================================"
+echo "  Corvus OS v0.0.1"
+echo "  Powered by RenzMcLang"
+echo "  Author: RenzMc"
+echo "================================"
+echo ""
+
+# Add RenzMcLang to PATH
+export PATH=$PATH:/usr/local/bin
+
+# RenzMcLang aliases
+alias renzmc='renzmc-launcher'
+alias demo='renzmc-launcher demo'
+alias examples='renzmc-launcher examples'
+
+# Weston GUI startup
+if [ -x /usr/bin/weston ]; then
+    echo "Starting Weston GUI..."
+    export XDG_RUNTIME_DIR=/tmp
+    export WAYLAND_DISPLAY=wayland-0
+    
+    # Check if we're in a login shell and not already running GUI
+    if [ "$TERM" = "linux" ] && [ -z "$WAYLAND_DISPLAY" ]; then
+        # Start Weston in background
+        weston --backend=drm-backend.so --shell=desktop-shell.so &
+        
+        # Wait a moment for Weston to start
+        sleep 2
+        
+        # Start terminal in Weston if available
+        if [ -x /usr/bin/weston-terminal ]; then
+            weston-terminal &
+        fi
+        
+        echo "Weston GUI started. Press Ctrl+C to exit."
+    fi
+fi
+
+# Show quick help on first login
+if [ ! -f ~/.corvus_welcome ]; then
+    echo "Quick Start:"
+    echo "  renzmc          - RenzMcLang help"
+    echo "  demo            - Run demo script"
+    echo "  examples        - List examples"
+    echo "  weston-terminal - Open GUI terminal"
+    echo ""
+    touch ~/.corvus_welcome
+fi
+
+# Enable Python for RenzMcLang
+export PYTHONPATH=/usr/local/lib/python*/site-packages:$PYTHONPATH

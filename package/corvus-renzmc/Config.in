@@ -1,0 +1,17 @@
+config BR2_PACKAGE_CORVUS_RENZMC
+    bool "corvus-renzmc"
+    select BR2_PACKAGE_PYTHON3 # RenzMcLang requires Python
+    select BR2_PACKAGE_PYTHON3_PIP # For pip install
+    help
+      RenzMcLang - Bahasa Pemrograman Berbasis Bahasa Indonesia
+      Corvus OS integration package for RenzMcLang programming language.
+      Automatically installs and configures RenzMcLang for use in Corvus OS.
+      
+      Author: RenzMc
+      Repository: https://github.com/RenzMc/RenzmcLang
+      
+      This package includes:
+      - RenzMcLang interpreter
+      - Python dependencies
+      - Example scripts
+      - Integration with Corvus OS shell

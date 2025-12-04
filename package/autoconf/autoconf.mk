@@ -1,0 +1,60 @@
+################################################################################
+#
+# autoconf
+#
+################################################################################
+
+AUTOCONF_VERSION = 2.72
+AUTOCONF_SOURCE = autoconf-$(AUTOCONF_VERSION).tar.xz
+AUTOCONF_SITE = $(BR2_GNU_MIRROR)/autoconf
+
+AUTOCONF_LICENSE = GPL-3.0+ with exceptions
+AUTOCONF_LICENSE_FILES = COPYINGv3 COPYING.EXCEPTION
+
+HOST_AUTOCONF_CONF_ENV = \
+	EMACS="no" \
+	ac_cv_path_M4=$(HOST_DIR)/bin/m4 \
+	ac_cv_prog_gnu_m4_gnu=no
+
+HOST_AUTOCONF_DEPENDENCIES = host-m4 host-libtool
+
+# Autoconf doesn't support most of the default host autotools configure options
+# Override to eliminate "unrecognized options" warnings
+HOST_AUTOCONF_CONF_OPTS = \
+	--disable-shared \
+	--disable-static \
+	--disable-gtk-doc \
+	--disable-gtk-doc-html \
+	--disable-doc \
+	--disable-docs \
+	--disable-documentation \
+	--disable-debug \
+	--with-xmlto=no \
+	--with-fop=no \
+	--disable-nls \
+	--disable-dependency-tracking
+
+# Host-Autoconf doesn't support most of the default host autotools configure options
+# Override to eliminate "unrecognized options" warnings
+HOST_HOST_AUTOCONF_CONF_OPTS = \
+	--disable-shared \
+	--disable-static \
+	--disable-gtk-doc \
+	--disable-gtk-doc-html \
+	--disable-doc \
+	--disable-docs \
+	--disable-documentation \
+	--disable-debug \
+	--with-xmlto=no \
+	--with-fop=no \
+	--disable-nls \\\n	--disable-dependency-tracking
+
+$(eval $(host-autotools-package))
+
+# variables used by other packages
+AUTOCONF = $(HOST_DIR)/bin/autoconf -I "$(ACLOCAL_DIR)" -I "$(ACLOCAL_HOST_DIR)"
+AUTOHEADER = $(HOST_DIR)/bin/autoheader -I "$(ACLOCAL_DIR)" -I "$(ACLOCAL_HOST_DIR)"
+AUTORECONF = $(HOST_CONFIGURE_OPTS) ACLOCAL="$(ACLOCAL)" \
+	AUTOCONF="$(AUTOCONF)" AUTOHEADER="$(AUTOHEADER)" \
+	AUTOMAKE="$(AUTOMAKE)" GTKDOCIZE=/bin/true \
+	$(HOST_DIR)/bin/autoreconf -f -i

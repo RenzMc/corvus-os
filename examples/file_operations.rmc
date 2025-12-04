@@ -1,0 +1,219 @@
+// ============================================
+// Corvus OS - File Operations Examples
+// Author: RenzMc
+// ============================================
+
+impor_python 'os'
+impor_python 'json'
+
+tampilkan '================================'
+tampilkan '  File Operations Corvus OS'
+tampilkan '  Powered by RenzMcLang'
+tampilkan '================================'
+tampilkan ''
+
+// Working with files and directories
+tampilkan '=== FILE & DIRECTORY OPERATIONS ==='
+tampilkan ''
+
+// Current directory
+current_dir itu panggil_python os.getcwd()
+tampilkan 'Current directory: ' + current_dir
+tampilkan ''
+
+// List files in current directory
+files itu panggil_python os.listdir('.')
+tampilkan 'Files in current directory:'
+untuk setiap file dari files
+    tampilkan '  - ' + file
+selesai
+tampilkan ''
+
+// Create directories
+tampilkan '=== CREATING DIRECTORIES ==='
+tampilkan ''
+
+coba
+    // Create test directory
+    panggil_python os.makedirs('test_corvus_dir', exist_ok=True)
+    tampilkan 'Created directory: test_corvus_dir'
+    
+    // Create nested directories
+    panggil_python os.makedirs('test_corvus_dir/subdir1/subdir2', exist_ok=True)
+    tampilkan 'Created nested directories: subdir1/subdir2'
+    tampilkan ''
+selesai
+
+// File writing
+tampilkan '=== FILE WRITING ==='
+tampilkan ''
+
+coba
+    // Write text file
+    file_content itu 'Corvus OS - File Content Test\nAuthor: RenzMc\nCreated with RenzMcLang\n\nThis is a test file created by Corvus OS.\nFeatures:\n- Lightweight\n- Simple\n- Powerful\n- RenzMcLang integration'
+    
+    file_handle itu panggil_python open('test_corvus_dir/test.txt', 'w')
+    panggil_python file_handle.write(file_content)
+    panggil_python file_handle.close()
+    
+    tampilkan 'Created file: test_corvus_dir/test.txt'
+    tampilkan 'Content written successfully!'
+    tampilkan ''
+selesai
+
+// File reading
+tampilkan '=== FILE READING ==='
+tampilkan ''
+
+coba
+    read_handle itu panggil_python open('test_corvus_dir/test.txt', 'r')
+    content itu panggil_python read_handle.read()
+    panggil_python read_handle.close()
+    
+    tampilkan 'File content:'
+    tampilkan content
+    tampilkan ''
+selesai
+
+// JSON operations
+tampilkan '=== JSON OPERATIONS ==='
+tampilkan ''
+
+coba
+    // Create data structure
+    corvus_data itu {
+        'os_name': 'Corvus OS',
+        'version': '1.0',
+        'author': 'RenzMc',
+        'features': ['Lightweight', 'Simple', 'Powerful', 'RenzMcLang'],
+        'system_info': {
+            'architecture': 'x86_64',
+            'memory_min': '256MB',
+            'storage_min': '500MB'
+        }
+    }
+    
+    // Write JSON file
+    json_handle itu panggil_python open('test_corvus_dir/corvus_info.json', 'w')
+    panggil_python json_handle.write(panggil_python json.dumps(corvus_data, indent=2))
+    panggil_python json_handle.close()
+    
+    tampilkan 'Created JSON file: test_corvus_dir/corvus_info.json'
+    tampilkan ''
+    
+    // Read JSON file
+    json_read_handle itu panggil_python open('test_corvus_dir/corvus_info.json', 'r')
+    json_content itu panggil_python json.load(json_read_handle)
+    panggil_python json_read_handle.close()
+    
+    tampilkan 'JSON content read successfully!'
+    tampilkan 'OS Name: ' + json_content.os_name
+    tampilkan 'Version: ' + json_content.version
+    tampilkan 'Author: ' + json_content.author
+    tampilkan 'Features: ' + json_content.features
+    tampilkan ''
+selesai
+
+// File operations with loops
+tampilkan '=== BULK FILE OPERATIONS ==='
+tampilkan ''
+
+coba
+    // Create multiple files
+    file_names itu ['file1.txt', 'file2.txt', 'file3.txt']
+    
+    untuk setiap file_name dari file_names
+        file_handle itu panggil_python open('test_corvus_dir/' + file_name, 'w')
+        panggil_python file_handle.write('This is ' + file_name + ' created by Corvus OS\n')
+        panggil_python file_handle.close()
+    selesai
+    
+    tampilkan 'Created multiple files successfully!'
+    tampilkan ''
+    
+    // Read and display all created files
+    untuk setiap file_name dari file_names
+        file_handle itu panggil_python open('test_corvus_dir/' + file_name, 'r')
+        content itu panggil_python file_handle.read()
+        panggil_python file_handle.close()
+        
+        tampilkan 'Content of ' + file_name + ':'
+        tampilkan content.strip()
+        tampilkan ''
+    selesai
+selesai
+
+// Directory operations
+tampilkan '=== DIRECTORY OPERATIONS ==='
+tampilkan ''
+
+coba
+    // List directory tree
+    dir_tree itu panggil_python os.listdir('test_corvus_dir')
+    tampilkan 'Contents of test_corvus_dir:'
+    untuk setiap item dari dir_tree
+        item_path itu 'test_corvus_dir/' + item
+        is_dir itu panggil_python os.path.isdir(item_path)
+        
+        jika is_dir
+            tampilkan '  [DIR]  ' + item
+        lainnya
+            file_size itu panggil_python os.path.getsize(item_path)
+            tampilkan '  [FILE] ' + item + ' (' + file_size + ' bytes)'
+        selesai
+    selesai
+    tampilkan ''
+selesai
+
+// File statistics
+tampilkan '=== FILE STATISTICS ==='
+tampilkan ''
+
+coba
+    total_files itu 0
+    total_dirs itu 0
+    total_size itu 0
+    
+    dir_contents itu panggil_python os.listdir('test_corvus_dir')
+    untuk setiap item dari dir_contents
+        item_path itu 'test_corvus_dir/' + item
+        is_dir itu panggil_python os.path.isdir(item_path)
+        
+        jika is_dir
+            total_dirs itu total_dirs + 1
+        lainnya
+            total_files itu total_files + 1
+            file_size itu panggil_python os.path.getsize(item_path)
+            total_size itu total_size + file_size
+        selesai
+    selesai
+    
+    tampilkan 'Directory Statistics:'
+    tampilkan '  Total files: ' + total_files
+    tampilkan '  Total directories: ' + total_dirs
+    tampilkan '  Total size: ' + total_size + ' bytes'
+    tampilkan ''
+selesai
+
+// Cleanup operations
+tampilkan '=== CLEANUP OPERATIONS ==='
+tampilkan ''
+
+coba
+    // Remove specific files
+    remove_files itu ['file1.txt', 'file2.txt', 'file3.txt']
+    untuk setiap file_name dari remove_files
+        file_path itu 'test_corvus_dir/' + file_name
+        panggil_python os.remove(file_path)
+        tampilkan 'Removed: ' + file_path
+    selesai
+    
+    // Note: Directory removal would require more complex recursive operation
+    tampilkan 'Cleanup completed (test files removed)'
+    tampilkan ''
+selesai
+
+tampilkan '================================'
+tampilkan '  File operations completed!'
+tampilkan '  Corvus OS - RenzMcLang'
+tampilkan '================================'
