@@ -48,11 +48,17 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout Corvus-Os
       uses: actions/checkout@v4
-      
+
+    - name: Debug workspace
+      run: |
+        echo "GITHUB_WORKSPACE = $GITHUB_WORKSPACE"
+        pwd
+        ls -la
+
     - name: Free Disk Space
       run: |
         echo "Freeing up disk space..."
@@ -61,7 +67,7 @@ jobs:
         sudo rm -rf /usr/local/share/boost
         sudo rm -rf "$AGENT_TOOLSDIRECTORY"
         df -h
-        
+
     - name: Install Dependencies
       run: |
         echo "Installing build dependencies..."
@@ -75,50 +81,47 @@ jobs:
           python3 python3-pip \
           libncurses5-dev \
           git
-        
+
     - name: Cache Buildroot DL Directory
       if: env.USE_CACHE == 'true'
       uses: actions/cache@v4
       with:
-        path: corvus-os/buildroot/dl
+        path: buildroot/dl
         key: ${{ runner.os }}-buildroot-dl-${{ env.BUILDROOT_VERSION }}-${{ hashFiles('**/Config.in', '**/*.mk') }}
         restore-keys: |
           ${{ runner.os }}-buildroot-dl-${{ env.BUILDROOT_VERSION }}-
           ${{ runner.os }}-buildroot-dl-
-          
+
     - name: Cache Buildroot Output
       if: env.USE_CACHE == 'true'
       uses: actions/cache@v4
       with:
         path: |
-          corvus-os/buildroot/output/build
-          corvus-os/buildroot/output/host
+          buildroot/output/build
+          buildroot/output/host
         key: ${{ runner.os }}-buildroot-output-${{ env.BUILDROOT_VERSION }}-${{ env.BUILD_TARGET }}-${{ github.sha }}
         restore-keys: |
           ${{ runner.os }}-buildroot-output-${{ env.BUILDROOT_VERSION }}-${{ env.BUILD_TARGET }}-
           ${{ runner.os }}-buildroot-output-${{ env.BUILDROOT_VERSION }}-
-          
+
     - name: Clone Buildroot
-      working-directory: corvus-os
       run: |
         echo "Cloning Buildroot $BUILDROOT_VERSION..."
         if [ ! -d "buildroot" ]; then
           git clone --single-branch --branch=$BUILDROOT_VERSION \
                     --no-tags --depth=1 \
-                    https://github.com/buildroot/buildroot
+                    https://github.com/buildroot/buildroot buildroot
         fi
         cd buildroot
         git log -1
-        
+
     - name: Configure Build
-      working-directory: corvus-os
       run: |
         echo "Configuring Corvus-Os build for target: $BUILD_TARGET"
         cd buildroot
         make BR2_EXTERNAL=.. $BUILD_TARGET
-        
+
     - name: Show Configuration
-      working-directory: corvus-os
       run: |
         echo "=== Build Configuration ==="
         echo "Buildroot Version: $BUILDROOT_VERSION"
@@ -127,74 +130,50 @@ jobs:
         echo "=========================="
         cd buildroot
         make BR2_EXTERNAL=.. show-info || true
-        
+
     - name: Build Corvus-Os
-      working-directory: corvus-os
       run: |
         echo "Building Corvus-Os... This may take 1-3 hours"
         cd buildroot
         make BR2_EXTERNAL=.. -j$(nproc) 2>&1 | tee ../build.log
-        
+
     - name: Show Build Results
       if: always()
-      working-directory: corvus-os
       run: |
         echo "=== Build Results ==="
         cd buildroot
         ls -lh output/images/ || echo "No images found"
         du -sh output/images/* || true
         echo "===================="
-        
+
     - name: Upload Build Images
       if: success()
       uses: actions/upload-artifact@v4
       with:
         name: corvus-os-${{ env.BUILD_TARGET }}-${{ env.BUILDROOT_VERSION }}
         path: |
-          corvus-os/buildroot/output/images/*
-          !corvus-os/buildroot/output/images/*.tmp
+          buildroot/output/images/*
+          !buildroot/output/images/*.tmp
         retention-days: 30
-        
+
     - name: Upload Build Log
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: build-log-${{ env.BUILD_TARGET }}
-        path: corvus-os/build.log
+        path: build.log
         retention-days: 7
-        
+
     - name: Create Release Assets
       if: success() && startsWith(github.ref, 'refs/tags/')
-      working-directory: corvus-os/buildroot/output/images
+      working-directory: buildroot/output/images
       run: |
         tar -czf corvus-os-${{ env.BUILD_TARGET }}-${GITHUB_REF#refs/tags/}.tar.gz *
-        
+
     - name: Upload to Release
       if: success() && startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v1
       with:
-        files: corvus-os/buildroot/output/images/*.tar.gz
+        files: buildroot/output/images/*.tar.gz
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
-  build-matrix:
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        target:
-          - qemu_x86_64_defconfig
-          - qemu_aarch64_virt_defconfig
-          - img_x86_64_defconfig
-          - img_aarch64_defconfig
-      fail-fast: false
-      
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      
-    - name: Build ${{ matrix.target }}
-      run: |
-        echo "Building Corvus-Os for ${{ matrix.target }}"
-        echo "This is a matrix build - multiple targets in parallel"
-        # Matrix builds can be enabled by duplicating the build steps from the main job
