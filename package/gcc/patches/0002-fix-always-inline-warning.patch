@@ -1,0 +1,20 @@
+--- a/libsanitizer/hwasan/hwasan_checks.h
++++ b/libsanitizer/hwasan/hwasan_checks.h
+@@ -152,7 +152,7 @@ enum class TagMismatchMode {
+   TagMismatchModZero,
+ };
+ 
+-__attribute__((always_inline, nodebug)) static void CheckAddress(uptr p) {
++__attribute__((always_inline)) static void CheckAddress(uptr p) {
+   TaggedPointer tp(p, kShadowAlignment);
+   uptr p0 = tp.UntaggedPointer();
+ 
+@@ -165,7 +165,7 @@ __attribute__((always_inline, nodebug)) static void CheckAddress(uptr p) {
+ 
+ // Check address + size for being non-zero and tag-matched.
+ __attribute__((always_inline, nodebug))
+-    static void CheckAddress(uptr p, uptr sz) {
++    static void CheckAddress(uptr p, uptr sz) {
+   TaggedPointer tp(p, kShadowAlignment);
+   uptr p0 = tp.UntaggedPointer();
+   uptr end = p0 + sz;
