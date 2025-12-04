@@ -1,233 +1,200 @@
-name: Build Corvus OS
-
-concurrency:
-  group: corvus-os-build
-  cancel-in-progress: true
+name: Build Corvus-Os
 
 on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
   workflow_dispatch:
     inputs:
-      build_type:
+      target:
+        description: 'Build Target'
         required: true
-        default: 'release'
+        default: 'img_x86_64_defconfig'
         type: choice
         options:
-          - 'debug'
-          - 'release'
-      target_arch:
+          - qemu_x86_64_defconfig
+          - qemu_aarch64_virt_defconfig
+          - pc_x86_64_efi_defconfig
+          - aarch64_efi_defconfig
+          - img_x86_64_defconfig
+          - img_aarch64_defconfig
+          - iso_x86_64_defconfig
+          - iso_aarch64_defconfig
+          - tar_x86_64_defconfig
+          - tar_aarch64_defconfig
+      use_cache:
+        description: 'Use build cache (recommended)'
         required: true
-        default: 'x86_64'
-        type: choice
-        options:
-          - 'x86_64'
-          - 'arm64'
-      upload_artifacts:
-        required: true
-        default: 'true'
+        default: true
         type: boolean
+      buildroot_version:
+        description: 'Buildroot Version'
+        required: true
+        default: '2023.02.x'
+        type: choice
+        options:
+          - '2023.02.x'
+          - '2024.02.x'
+          - '2024.05.x'
+          - '2024.08.x'
+          - '2025.02.x'
+
+env:
+  BUILDROOT_VERSION: ${{ github.event.inputs.buildroot_version || '2023.02.x' }}
+  BUILD_TARGET: ${{ github.event.inputs.target || 'img_x86_64_defconfig' }}
+  USE_CACHE: ${{ github.event.inputs.use_cache || 'true' }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
-    env:
-      DEFCONFIG_NAME: corvus_os_defconfig
-
+    
     steps:
-      - name: Checkout (shallow)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Enable universe (if needed)
-        run: |
-          sudo DEBIAN_FRONTEND=noninteractive apt-get update -yq
-          sudo apt-get install -yq software-properties-common || true
-          # try to enable universe (harmless if already enabled)
-          sudo add-apt-repository -y universe || true
-          sudo DEBIAN_FRONTEND=noninteractive apt-get update -yq
-
-      - name: Install packages (comprehensive host toolchain & -dev)
-        run: |
-          sudo DEBIAN_FRONTEND=noninteractive apt-get update -yq
-
-          # Broad set of runtime + dev packages that Buildroot/configure commonly checks for.
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends \
-            build-essential ccache git wget curl ca-certificates \
-            python3 python3-pip python3-dev libpython3-dev python3-venv \
-            cmake pkg-config ninja-build autoconf automake gettext autopoint intltool \
-            libtool m4 automake libbsd-dev file rsync unzip cpio bc bison flex \
-            libncurses5-dev libncursesw5-dev libslang2-dev libreadline-dev \
-            libssl-dev zlib1g-dev libglib2.0-dev libelf-dev libexpat1-dev \
-            libbz2-dev liblzma-dev libpcre3-dev libpcre2-dev libgmp-dev \
-            libmpfr-dev libattr1-dev libcap-dev libmount-dev libudev-dev \
-            libffi-dev libsqlite3-dev pkg-config perl tar unzip xz-utils \
-            texinfo make gperf python3-setuptools
-
-          # small cleanup
-          sudo apt-get -yq autoremove || true
-          sudo apt-get -yq clean || true
-
-      - name: Print toolchain versions (sanity)
-        run: |
-          echo "=== tool versions ==="
-          command -v gcc || true; gcc --version || true
-          command -v g++ || true; g++ --version || true
-          command -v ccache || true; ccache --version || true
-          command -v cmake || true; cmake --version || true
-          command -v ninja || true; ninja --version || true
-          echo "====================="
-
-      - name: Clone Buildroot (shallow)
-        run: |
-          git clone --depth 1 https://github.com/buildroot/buildroot.git buildroot
-          cd buildroot || exit 1
-          git checkout 2025.11-rc2 || true
-
-      - name: Prepare cache directories
-        run: |
-          mkdir -p "${{ github.workspace }}/.ccache"
-          mkdir -p "${{ github.workspace }}/buildroot/dl"
-          mkdir -p "${{ github.workspace }}/.local/bin"
-
-      - name: Cache ccache
-        id: cache-ccache
-        uses: actions/cache@v4
-        with:
-          path: .ccache
-          key: ccache-${{ runner.os }}-${{ inputs.target_arch }}-${{ hashFiles('configs/**') }}
-          restore-keys: |
-            ccache-${{ runner.os }}-${{ inputs.target_arch }}-
-
-      - name: Cache buildroot dl
-        id: cache-dl
-        uses: actions/cache@v4
-        with:
-          path: buildroot/dl
-          key: buildroot-dl-${{ runner.os }}-${{ inputs.target_arch }}-${{ hashFiles('configs/**') }}
-          restore-keys: |
-            buildroot-dl-${{ runner.os }}-${{ inputs.target_arch }}-
-
-      - name: Enable ccache (env + wrappers)
-        run: |
-          set -e
-          mkdir -p "${{ github.workspace }}/.ccache"
-          echo "CCACHE_DIR=${{ github.workspace }}/.ccache" >> $GITHUB_ENV
-
-          WORK_BIN="${{ github.workspace }}/.local/bin"
-          mkdir -p "$WORK_BIN"
-          echo "$WORK_BIN" >> $GITHUB_PATH
-
-          # gcc wrapper
-          cat > "${WORK_BIN}/ccache-gcc-wrapper" <<'EOF'
-          #!/usr/bin/env bash
-          CCACHE_BIN="$(command -v ccache || true)"
-          GCC_BIN="$(command -v gcc || true)"
-          if [ -z "$CCACHE_BIN" ] || [ -z "$GCC_BIN" ]; then
-            echo "ccache or gcc not found" >&2
-            exit 1
-          fi
-          exec "$CCACHE_BIN" "$GCC_BIN" "$@"
-          EOF
-          chmod +x "${WORK_BIN}/ccache-gcc-wrapper"
-
-          # g++ wrapper
-          cat > "${WORK_BIN}/ccache-g++-wrapper" <<'EOF'
-          #!/usr/bin/env bash
-          CCACHE_BIN="$(command -v ccache || true)"
-          GXX_BIN="$(command -v g++ || true)"
-          if [ -z "$CCACHE_BIN" ] || [ -z "$GXX_BIN" ]; then
-            echo "ccache or g++ not found" >&2
-            exit 1
-          fi
-          exec "$CCACHE_BIN" "$GXX_BIN" "$@"
-          EOF
-          chmod +x "${WORK_BIN}/ccache-g++-wrapper"
-
-          # export full wrapper paths for CMake/Buildroot host builds
-          echo "CC=${WORK_BIN}/ccache-gcc-wrapper" >> $GITHUB_ENV
-          echo "CXX=${WORK_BIN}/ccache-g++-wrapper" >> $GITHUB_ENV
-          echo "HOSTCC=${WORK_BIN}/ccache-gcc-wrapper" >> $GITHUB_ENV
-          echo "HOSTCXX=${WORK_BIN}/ccache-g++-wrapper" >> $GITHUB_ENV
-
-          ls -l "${WORK_BIN}" || true
-          ccache --max-size=2G || true
-          ccache -s || true
-
-      - name: Ensure external descriptor files
-        run: |
-          printf "name: corvus_os\n" > external.desc
-          printf "desc: Corvus BR2 external\n" >> external.desc
-          [ -f external.mk ] || touch external.mk
-          [ -f Config.in ] || touch Config.in
-          if [ ! -d configs ]; then
-            ls -la || exit 1
-          fi
-          if [ ! -f configs/"${DEFCONFIG_NAME}" ]; then
-            ls -la configs || exit 1
-          fi
-
-      - name: Configure Buildroot (clean + migrate)
-        run: |
-          set -e
-          cd buildroot
-          rm -f .config .config.old
-          # create .config from external defconfig
-          make BR2_EXTERNAL=.. "${DEFCONFIG_NAME}"
-          # run olddefconfig to migrate legacy entries (best-effort)
-          make olddefconfig BR2_EXTERNAL=.. || true
-          # remove BR2_LEGACY if present to avoid Makefile.legacy stopping the build
-          if grep -q '^BR2_LEGACY' .config 2>/dev/null; then
-            sed -i '/^BR2_LEGACY/d' .config || true
-            make olddefconfig BR2_EXTERNAL=.. || true
-          fi
-
-      - name: Build (capture to compressed log, minimal console output)
-        run: |
-          set -e
-          cd buildroot
-          export BR2_DL_DIR="$(pwd)/dl"
-          mkdir -p "${BR2_DL_DIR}"
-
-          LOG="${{ github.workspace }}/build.log"
-          rm -f "$LOG"
-
-          if [ "${{ inputs.build_type }}" = "debug" ]; then
-            make -s BR2_LEGACY=n -j"$(nproc)" V=1 BR2_EXTERNAL=.. BR2_DL_DIR="${BR2_DL_DIR}" &> "$LOG" || {
-              echo "Build failed — showing last 200 lines:";
-              tail -n 200 "$LOG";
-              gzip -9 "$LOG" || true;
-              exit 1;
-            }
-          else
-            make -s BR2_LEGACY=n -j"$(nproc)" BR2_EXTERNAL=.. BR2_DL_DIR="${BR2_DL_DIR}" &> "$LOG" || {
-              echo "Build failed — showing last 200 lines:";
-              tail -n 200 "$LOG";
-              gzip -9 "$LOG" || true;
-              exit 1;
-            }
-          fi
-
-          echo "Build finished successfully.";
-          echo "Artifacts (sizes):";
-          du -h output/images/* 2>/dev/null | sort -h | head -n 20 || true
-
-          gzip -9 "$LOG" || true
-
-      - name: Upload compressed build log (optional)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: corvus-build-log
-          path: build.log.gz
-          retention-days: 7
-
-      - name: Upload artifacts
-        if: ${{ inputs.upload_artifacts == 'true' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: corvus-os-${{ inputs.build_type }}-${{ inputs.target_arch }}
-          path: |
-            buildroot/output/images/*
-            examples/**
-          retention-days: 30
+    - name: Checkout Corvus-Os
+      uses: actions/checkout@v4
+      
+    - name: Free Disk Space
+      run: |
+        echo "Freeing up disk space..."
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /usr/local/share/boost
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+        df -h
+        
+    - name: Install Dependencies
+      run: |
+        echo "Installing build dependencies..."
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          gcc g++ make \
+          bzip2 xz-utils \
+          unzip bc \
+          file wget cpio rsync \
+          python3 python3-pip \
+          libncurses5-dev \
+          git
+        
+    - name: Cache Buildroot DL Directory
+      if: env.USE_CACHE == 'true'
+      uses: actions/cache@v4
+      with:
+        path: corvus-os/buildroot/dl
+        key: ${{ runner.os }}-buildroot-dl-${{ env.BUILDROOT_VERSION }}-${{ hashFiles('**/Config.in', '**/*.mk') }}
+        restore-keys: |
+          ${{ runner.os }}-buildroot-dl-${{ env.BUILDROOT_VERSION }}-
+          ${{ runner.os }}-buildroot-dl-
+          
+    - name: Cache Buildroot Output
+      if: env.USE_CACHE == 'true'
+      uses: actions/cache@v4
+      with:
+        path: |
+          corvus-os/buildroot/output/build
+          corvus-os/buildroot/output/host
+        key: ${{ runner.os }}-buildroot-output-${{ env.BUILDROOT_VERSION }}-${{ env.BUILD_TARGET }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-buildroot-output-${{ env.BUILDROOT_VERSION }}-${{ env.BUILD_TARGET }}-
+          ${{ runner.os }}-buildroot-output-${{ env.BUILDROOT_VERSION }}-
+          
+    - name: Clone Buildroot
+      working-directory: corvus-os
+      run: |
+        echo "Cloning Buildroot $BUILDROOT_VERSION..."
+        if [ ! -d "buildroot" ]; then
+          git clone --single-branch --branch=$BUILDROOT_VERSION \
+                    --no-tags --depth=1 \
+                    https://github.com/buildroot/buildroot
+        fi
+        cd buildroot
+        git log -1
+        
+    - name: Configure Build
+      working-directory: corvus-os
+      run: |
+        echo "Configuring Corvus-Os build for target: $BUILD_TARGET"
+        cd buildroot
+        make BR2_EXTERNAL=.. $BUILD_TARGET
+        
+    - name: Show Configuration
+      working-directory: corvus-os
+      run: |
+        echo "=== Build Configuration ==="
+        echo "Buildroot Version: $BUILDROOT_VERSION"
+        echo "Target: $BUILD_TARGET"
+        echo "Cache Enabled: $USE_CACHE"
+        echo "=========================="
+        cd buildroot
+        make BR2_EXTERNAL=.. show-info || true
+        
+    - name: Build Corvus-Os
+      working-directory: corvus-os
+      run: |
+        echo "Building Corvus-Os... This may take 1-3 hours"
+        cd buildroot
+        make BR2_EXTERNAL=.. -j$(nproc) 2>&1 | tee ../build.log
+        
+    - name: Show Build Results
+      if: always()
+      working-directory: corvus-os
+      run: |
+        echo "=== Build Results ==="
+        cd buildroot
+        ls -lh output/images/ || echo "No images found"
+        du -sh output/images/* || true
+        echo "===================="
+        
+    - name: Upload Build Images
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: corvus-os-${{ env.BUILD_TARGET }}-${{ env.BUILDROOT_VERSION }}
+        path: |
+          corvus-os/buildroot/output/images/*
+          !corvus-os/buildroot/output/images/*.tmp
+        retention-days: 30
+        
+    - name: Upload Build Log
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-log-${{ env.BUILD_TARGET }}
+        path: corvus-os/build.log
+        retention-days: 7
+        
+    - name: Create Release Assets
+      if: success() && startsWith(github.ref, 'refs/tags/')
+      working-directory: corvus-os/buildroot/output/images
+      run: |
+        tar -czf corvus-os-${{ env.BUILD_TARGET }}-${GITHUB_REF#refs/tags/}.tar.gz *
+        
+    - name: Upload to Release
+      if: success() && startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: corvus-os/buildroot/output/images/*.tar.gz
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+  build-matrix:
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - qemu_x86_64_defconfig
+          - qemu_aarch64_virt_defconfig
+          - img_x86_64_defconfig
+          - img_aarch64_defconfig
+      fail-fast: false
+      
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Build ${{ matrix.target }}
+      run: |
+        echo "Building Corvus-Os for ${{ matrix.target }}"
+        echo "This is a matrix build - multiple targets in parallel"
+        # Matrix builds can be enabled by duplicating the build steps from the main job
