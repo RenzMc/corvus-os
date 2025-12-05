@@ -44,62 +44,66 @@ env:
   BUILDROOT_VERSION: ${{ github.event.inputs.buildroot_version || '2023.02.x' }}
   BUILD_TARGET: ${{ github.event.inputs.target || 'img_x86_64_defconfig' }}
   USE_CACHE: ${{ github.event.inputs.use_cache || 'true' }}
+  # Jika BR2_EXTERNAL tidak ada di root repo, ganti path ini sesuai kebutuhan
+  BR2_EXTERNAL_PATH: ${{ github.workspace }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    # beri timeout lebih besar karena buildroot bisa lama (dalam menit)
+    timeout-minutes: 420
 
     steps:
-    - name: Checkout Corvus-Os
+    - name: Checkout Corvus-Os repo (full history)
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
-    - name: Debug workspace
+    - name: Show workspace info
       run: |
         echo "GITHUB_WORKSPACE = $GITHUB_WORKSPACE"
         pwd
-        ls -la
+        echo "List root repo (first 200 entries):"
+        ls -la | sed -n '1,200p'
+        echo "Show configs folder (if exists):"
+        ls -la configs || true
 
-    - name: Free Disk Space
+    - name: Free Disk Space (best-effort)
       run: |
         echo "Freeing up disk space..."
-        sudo rm -rf /usr/share/dotnet
-        sudo rm -rf /opt/ghc
-        sudo rm -rf /usr/local/share/boost
-        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+        sudo rm -rf /usr/share/dotnet || true
+        sudo rm -rf /opt/ghc || true
+        sudo rm -rf /usr/local/share/boost || true
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY" || true
         df -h
 
     - name: Install Dependencies
       run: |
-        echo "Installing build dependencies..."
-        sudo apt-get update
+        sudo apt-get update -y
         sudo apt-get install -y \
-          build-essential \
-          gcc g++ make \
-          bzip2 xz-utils \
-          unzip bc \
-          file wget cpio rsync \
-          python3 python3-pip \
-          libncurses5-dev \
-          git
+          build-essential gcc g++ make \
+          bzip2 xz-utils unzip bc file wget cpio rsync \
+          python3 python3-pip libncurses5-dev git coreutils
 
     - name: Cache Buildroot DL Directory
       if: env.USE_CACHE == 'true'
       uses: actions/cache@v4
       with:
         path: buildroot/dl
-        key: ${{ runner.os }}-buildroot-dl-${{ env.BUILDROOT_VERSION }}-${{ hashFiles('**/Config.in', '**/*.mk') }}
+        # gunakan hash dari file config di repo agar cache refresh saat config berubah
+        key: ${{ runner.os }}-buildroot-dl-${{ env.BUILDROOT_VERSION }}-${{ hashFiles('**/configs/**', '**/*.mk', '**/Config.in') }}
         restore-keys: |
           ${{ runner.os }}-buildroot-dl-${{ env.BUILDROOT_VERSION }}-
           ${{ runner.os }}-buildroot-dl-
 
-    - name: Cache Buildroot Output
+    - name: Cache Buildroot Output (host & build)
       if: env.USE_CACHE == 'true'
       uses: actions/cache@v4
       with:
         path: |
           buildroot/output/build
           buildroot/output/host
-        key: ${{ runner.os }}-buildroot-output-${{ env.BUILDROOT_VERSION }}-${{ env.BUILD_TARGET }}-${{ github.sha }}
+        key: ${{ runner.os }}-buildroot-output-${{ env.BUILDROOT_VERSION }}-${{ env.BUILD_TARGET }}-${{ hashFiles('**/configs/**', '**/*.mk', '**/Config.in') }}
         restore-keys: |
           ${{ runner.os }}-buildroot-output-${{ env.BUILDROOT_VERSION }}-${{ env.BUILD_TARGET }}-
           ${{ runner.os }}-buildroot-output-${{ env.BUILDROOT_VERSION }}-
@@ -108,55 +112,91 @@ jobs:
       run: |
         echo "Cloning Buildroot $BUILDROOT_VERSION..."
         if [ ! -d "buildroot" ]; then
-          git clone --single-branch --branch=$BUILDROOT_VERSION \
-                    --no-tags --depth=1 \
-                    https://github.com/buildroot/buildroot buildroot
+          git clone --single-branch --branch="$BUILDROOT_VERSION" --no-tags --depth=1 https://github.com/buildroot/buildroot buildroot
         fi
         cd buildroot
-        git log -1
+        git log -1 || true
+
+    - name: Sanity checks: BR2_EXTERNAL and defconfig
+      run: |
+        echo "Checking BR2_EXTERNAL path and requested defconfig..."
+        echo "BR2_EXTERNAL_PATH = $BR2_EXTERNAL_PATH"
+        echo "BUILD_TARGET = $BUILD_TARGET"
+        echo "Files at BR2_EXTERNAL_PATH (first 200 lines):"
+        ls -la "$BR2_EXTERNAL_PATH" | sed -n '1,200p'
+        echo "Looking for configs/$BUILD_TARGET in BR2_EXTERNAL_PATH/configs ..."
+        if [ -f "$BR2_EXTERNAL_PATH/configs/$BUILD_TARGET" ] || [ -f "$BR2_EXTERNAL_PATH/configs/${BUILD_TARGET}.defconfig" ]; then
+          echo "Found defconfig: $BUILD_TARGET"
+        else
+          echo "WARNING: defconfig $BUILD_TARGET not found under $BR2_EXTERNAL_PATH/configs/"
+          echo "Listing configs folder:"
+          ls -la "$BR2_EXTERNAL_PATH/configs" || true
+          # don't fail here; continue to run so logs are captured, but this is a likely reason of no image
+        fi
 
     - name: Configure Build
       run: |
-        echo "Configuring Corvus-Os build for target: $BUILD_TARGET"
+        set -o pipefail
         cd buildroot
+        # memanggil make target konfigurasi (produces .config)
         make BR2_EXTERNAL=.. $BUILD_TARGET
 
     - name: Show Configuration
       run: |
-        echo "=== Build Configuration ==="
-        echo "Buildroot Version: $BUILDROOT_VERSION"
-        echo "Target: $BUILD_TARGET"
-        echo "Cache Enabled: $USE_CACHE"
-        echo "=========================="
         cd buildroot
+        echo "=== Build Configuration (show-info) ==="
         make BR2_EXTERNAL=.. show-info || true
+        echo "======================================="
 
-    - name: Build Corvus-Os
+    - name: Build Corvus-Os (with strict error detection)
       run: |
-        echo "Building Corvus-Os... This may take 1-3 hours"
+        set -o pipefail
         cd buildroot
+        echo "Starting build for target: $BUILD_TARGET"
+        # jalankan build, simpan log ke root repo build.log
         make BR2_EXTERNAL=.. -j$(nproc) 2>&1 | tee ../build.log
+        # jika ditemukan kata 'error:' dalam log, tampilkan tail dan exit 1 untuk debugging
+        if grep -i "error:" ../build.log -n | sed -n '1,1p' ; then
+          echo "##[error] Detected 'error:' in build.log; failing job for debugging"
+          tail -n 300 ../build.log
+          exit 1
+        fi
 
-    - name: Show Build Results
+    - name: Show Build Results (debug)
       if: always()
       run: |
-        echo "=== Build Results ==="
+        echo "=== Contents of buildroot/output/images ==="
         cd buildroot
-        ls -lh output/images/ || echo "No images found"
+        ls -lah output/images || true
+        echo "=== Sizes ==="
         du -sh output/images/* || true
-        echo "===================="
+        echo "=== Tail build.log ==="
+        tail -n 200 ../build.log || true
 
-    - name: Upload Build Images
-      if: success()
+    - name: Check if images exist
+      id: check_images
+      run: |
+        cd buildroot/output/images || { echo "no_images=true" >> $GITHUB_OUTPUT; exit 0; }
+        # check for any non-zero files (not .tmp, not stamp files)
+        IMAGE_COUNT=$(find . -maxdepth 1 -type f ! -name '*.tmp' ! -name '*.stamp' -print | wc -l || true)
+        echo "Found images count: $IMAGE_COUNT"
+        if [ "$IMAGE_COUNT" -gt 0 ]; then
+          echo "no_images=false" >> $GITHUB_OUTPUT
+          echo "has_images=true" >> $GITHUB_OUTPUT
+        else
+          echo "no_images=true" >> $GITHUB_OUTPUT
+          echo "has_images=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Upload Build Images (only if images exist)
+      if: steps.check_images.outputs.has_images == 'true' && success()
       uses: actions/upload-artifact@v4
       with:
         name: corvus-os-${{ env.BUILD_TARGET }}-${{ env.BUILDROOT_VERSION }}
-        path: |
-          buildroot/output/images/*
-          !buildroot/output/images/*.tmp
+        path: buildroot/output/images/*
         retention-days: 30
 
-    - name: Upload Build Log
+    - name: Upload Build Log (always)
       if: always()
       uses: actions/upload-artifact@v4
       with:
@@ -164,14 +204,16 @@ jobs:
         path: build.log
         retention-days: 7
 
-    - name: Create Release Assets
-      if: success() && startsWith(github.ref, 'refs/tags/')
+    - name: Create Release Assets (if tag & images exist)
+      if: startsWith(github.ref, 'refs/tags/') && steps.check_images.outputs.has_images == 'true'
       working-directory: buildroot/output/images
       run: |
-        tar -czf corvus-os-${{ env.BUILD_TARGET }}-${GITHUB_REF#refs/tags/}.tar.gz *
+        TAG="${GITHUB_REF#refs/tags/}"
+        tar -czf corvus-os-${{ env.BUILD_TARGET }}-${TAG}.tar.gz *
+        ls -lah corvus-os-${{ env.BUILD_TARGET }}-${TAG}.tar.gz
 
-    - name: Upload to Release
-      if: success() && startsWith(github.ref, 'refs/tags/')
+    - name: Upload to Release (if tag & images exist)
+      if: startsWith(github.ref, 'refs/tags/') && steps.check_images.outputs.has_images == 'true'
       uses: softprops/action-gh-release@v1
       with:
         files: buildroot/output/images/*.tar.gz
